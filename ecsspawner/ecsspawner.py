@@ -20,6 +20,8 @@ class ECSSpawner(Spawner):
                               help="The task definition in <defn>:<revision> format")
     task_arn = Unicode()
     container_instance_arn = Unicode()
+    container_ip = Unicode()
+    container_port = Int(0)
 
     def load_state(self, state):
         super().load_state(state)
@@ -42,7 +44,7 @@ class ECSSpawner(Spawner):
                 cluster=self.cluster_name,
                 tasks = [self.task_arn]
             )
-            if res['tasks'][0]['lastStatus'].lower() == 'running':
+            if res['tasks'][0]['lastStatus'].lower() in ('pending', 'running'):
                 return None
             else:
                 return 1
@@ -53,25 +55,45 @@ class ECSSpawner(Spawner):
     @gen.coroutine
     def start(self):
         client = self.ecs_client
-        resp1 = yield client.run_task(cluster=self.cluster_name, taskDefinition=self.task_definition,
-                                count=1, startedBy="ecsspawner")
-        self.task_arn = resp1['tasks'][0]['containers'][0]['taskArn']
-        container_instance_arn = resp1['tasks'][0]['containerInstanceArn']
-        resp2 = yield client.describe_tasks(cluster=self.cluster_name, tasks=[self.task_arn])
-        host_port = resp2['tasks'][0]['networkBindings']['hostPort']
-        resp3 = client.describe_container_instances(cluster=self.cluster_name,
-                                                    containerInstances=[container_instance_arn])
-        ec2_instance_id = resp2['containerInstances'][0]['ec2InstanceId']
+        if not self.container_port or not self.container_ip:
+            resp1 = client.run_task(cluster=self.cluster_name, taskDefinition=self.task_definition,
+                                    count=1, startedBy="ecsspawner")
+            self.task_arn = resp1['tasks'][0]['containers'][0]['taskArn']
+            container_instance_arn = resp1['tasks'][0]['containerInstanceArn']
+            self.log.info("Spawned notebook container ")
+            self.log.info("Fetching container info")
+            resp2 = client.describe_tasks(cluster=self.cluster_name, tasks=[self.task_arn])
+            ctr = 0
+            last_status = resp2['tasks'][0]['containers'][0]['lastStatus']
+            while last_status != 'RUNNING' and ctr<100:
+                self.log.info("Waiting for container instance status to move from %s to RUNNING" % last_status)
+                yield gen.sleep(1)
+                ctr += 1
+                resp2 = client.describe_tasks(cluster=self.cluster_name, tasks=[self.task_arn])
+                last_status = resp2['tasks'][0]['containers'][0]['lastStatus']
+            port = resp2['tasks'][0]['containers'][0]['networkBindings'][0]['hostPort']
+            self.container_port = port
+            self.log.info("Container running on port %d" % int(port))
+            resp3 = client.describe_container_instances(cluster=self.cluster_name,
+                                                        containerInstances=[container_instance_arn])
+            ec2_instance_id = resp3['containerInstances'][0]['ec2InstanceId']
 
-        resp4 = self.ec2_client.describe_instances(InstanceIds=[ec2_instance_id])
-        public_ip = resp4['Reservations'][0]['Instances'][0]['PublicIpAddress']
-        private_ip = resp4['Reservations'][0]['Instances'][0]['PrivateIpAddress']
+            self.log.info("Fetching ec2 container instance IP addresses")
+            resp4 = self.ec2_client.describe_instances(InstanceIds=[ec2_instance_id])
 
-        return (public_ip, host_port)
+            ip = resp4['Reservations'][0]['Instances'][0]['PublicIpAddress']
+            self.container_ip = ip
+            private_ip = resp4['Reservations'][0]['Instances'][0]['PrivateIpAddress']
+            self.log.info("Finished with the start method")
+        else:
+            ip = self.container_ip
+            port = self.container_port
+
+        return (ip, port)
 
     def stop(self, now=False):
         self.log.info("Stopping task %s" % self.task_arn)
-        yield self.ecs_client.stop_task(
+        self.ecs_client.stop_task(
             cluster=self.cluster_name,
             task=self.task_arn,
             reason="Shutdown by the hub"
