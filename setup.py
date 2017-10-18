@@ -1,6 +1,7 @@
 import re
 import os
-from setuptools import setup, find_packages
+from distutils.core import setup
+from setuptools import find_packages
 import ast
 
 pjoin = os.path.join

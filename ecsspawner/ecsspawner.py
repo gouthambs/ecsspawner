@@ -15,9 +15,10 @@ class ECSSpawner(Spawner):
     ecs_client = boto3.client("ecs")
     ec2_client = boto3.client('ec2')
     cluster_name = Unicode("notebook-cluster",
-                           help="Name of the cluster setup")
+                           help="Name of the cluster setup").tag(config=True)
     task_definition = Unicode("ql_notebook_spawner_task:3",
-                              help="The task definition in <defn>:<revision> format")
+                              help="The task definition in <defn>:<revision> format").tag(config=True)
+
     task_arn = Unicode()
     container_instance_arn = Unicode()
     container_ip = Unicode()
