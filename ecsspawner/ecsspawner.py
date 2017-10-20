@@ -16,8 +16,9 @@ class ECSSpawner(Spawner):
     ec2_client = boto3.client('ec2')
     cluster_name = Unicode("notebook-cluster",
                            help="Name of the cluster setup").tag(config=True)
-    task_definition = Unicode("ql_notebook_spawner_task:3",
+    task_definition = Unicode("notebook_spawner_task:3",
                               help="The task definition in <defn>:<revision> format").tag(config=True)
+    container_name = Unicode("notebook", help="Container name that is specified in the task definition").tag(config=True)
 
     task_arn = Unicode()
     container_instance_arn = Unicode()
@@ -56,9 +57,25 @@ class ECSSpawner(Spawner):
     @gen.coroutine
     def start(self):
         client = self.ecs_client
+        base_url = self.user.base_url
         if not self.container_port or not self.container_ip:
-            resp1 = client.run_task(cluster=self.cluster_name, taskDefinition=self.task_definition,
-                                    count=1, startedBy="ecsspawner")
+            resp1 = client.run_task(
+                cluster=self.cluster_name, taskDefinition=self.task_definition,
+                count=1, startedBy="ecsspawner",
+                overrides={
+                    'containerOverrides': [
+                        {
+                            'name': self.container_name,
+                            'environment': [
+                                {
+                                    'name': 'base_url',
+                                    'value': base_url
+                                }
+                            ]
+                        }
+                    ]
+                }
+            )
             self.task_arn = resp1['tasks'][0]['containers'][0]['taskArn']
             container_instance_arn = resp1['tasks'][0]['containerInstanceArn']
             self.log.info("Spawned notebook container ")
@@ -67,6 +84,10 @@ class ECSSpawner(Spawner):
             ctr = 0
             last_status = resp2['tasks'][0]['containers'][0]['lastStatus']
             while last_status != 'RUNNING' and ctr<100:
+                if last_status == 'STOPPED':
+                    self.log.error("The container unusually stopped")
+                    reason = resp2['tasks'][0]['containers'][0].get('reason', "Error starting container")
+                    raise RuntimeError(reason)
                 self.log.info("Waiting for container instance status to move from %s to RUNNING" % last_status)
                 yield gen.sleep(1)
                 ctr += 1
