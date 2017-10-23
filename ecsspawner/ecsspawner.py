@@ -69,27 +69,27 @@ class ECSSpawner(Spawner):
                             'name': self.container_name,
                             'environment': [
                                 {
-                                    'name': 'JPY_BASE_URL',
+                                    'name': 'JUPYTERHUB_BASE_URL',
                                     'value': base_url
                                 },
                                 {
-                                    'name': 'JPY_API_TOKEN',
+                                    'name': 'JUPYTERHUB_API_TOKEN',
                                     'value': self.api_token
                                 },
                                 {
-                                    'name': 'JPY_USER',
+                                    'name': 'JUPYTERHUB_USER',
                                     'value': self.user.name
                                 },
                                 {
-                                    'name': 'JPY_COOKIE_NAME',
+                                    'name': 'JUPYTERHUB_COOKIE_NAME',
                                     'value': 'jupyter-hub-token-%s' % self.user.name
                                 },
                                 {
-                                    'name': 'JPY_HUB_PREFIX',
+                                    'name': 'JUPYTERHUB_HUB_PREFIX',
                                     'value': self.hub.url
                                 },
                                 {
-                                    'name': 'JPY_HUB_API_URL',
+                                    'name': 'JUPYTERHUB_HUB_API_URL',
                                     'value': self.hub.api_url
                                 }
                             ]
