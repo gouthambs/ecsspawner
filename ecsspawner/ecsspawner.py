@@ -19,6 +19,7 @@ class ECSSpawner(Spawner):
     task_definition = Unicode("notebook_spawner_task:3",
                               help="The task definition in <defn>:<revision> format").tag(config=True)
     container_name = Unicode("notebook", help="Container name that is specified in the task definition").tag(config=True)
+    expose_public_ip = Bool(False, help="Expose public ip to the hub. If false, then the private IP is returned").tag(config=True)
 
     task_arn = Unicode()
     container_instance_arn = Unicode()
@@ -68,8 +69,28 @@ class ECSSpawner(Spawner):
                             'name': self.container_name,
                             'environment': [
                                 {
-                                    'name': 'base_url',
+                                    'name': 'JPY_BASE_URL',
                                     'value': base_url
+                                },
+                                {
+                                    'name': 'JPY_API_TOKEN',
+                                    'value': self.api_token
+                                },
+                                {
+                                    'name': 'JPY_USER',
+                                    'value': self.user.name
+                                },
+                                {
+                                    'name': 'JPY_COOKIE_NAME',
+                                    'value': 'jupyter-hub-token-%s' % self.user.name
+                                },
+                                {
+                                    'name': 'JPY_HUB_PREFIX',
+                                    'value': self.hub.url
+                                },
+                                {
+                                    'name': 'JPY_HUB_API_URL',
+                                    'value': self.hub.api_url
                                 }
                             ]
                         }
@@ -82,7 +103,7 @@ class ECSSpawner(Spawner):
             self.log.info("Fetching container info")
             resp2 = client.describe_tasks(cluster=self.cluster_name, tasks=[self.task_arn])
             ctr = 0
-            last_status = resp2['tasks'][0]['containers'][0]['lastStatus']
+            last_status = 'PENDING'
             while last_status != 'RUNNING' and ctr<100:
                 if last_status == 'STOPPED':
                     self.log.error("The container unusually stopped")
@@ -103,9 +124,10 @@ class ECSSpawner(Spawner):
             self.log.info("Fetching ec2 container instance IP addresses")
             resp4 = self.ec2_client.describe_instances(InstanceIds=[ec2_instance_id])
 
-            ip = resp4['Reservations'][0]['Instances'][0]['PublicIpAddress']
-            self.container_ip = ip
+            public_ip = resp4['Reservations'][0]['Instances'][0]['PublicIpAddress']
             private_ip = resp4['Reservations'][0]['Instances'][0]['PrivateIpAddress']
+            ip = public_ip if self.expose_public_ip else private_ip
+            self.container_ip = ip
             self.log.info("Finished with the start method")
         else:
             ip = self.container_ip
