@@ -73,8 +73,8 @@ class ECSSpawner(Spawner):
                                     'value': base_url
                                 },
                                 {
-                                        'name': 'JPY_PORT',
-                                    'value': 8888
+                                    'name': 'JPY_PORT',
+                                    'value': '8888'
                                 },
                                 {
                                     'name': 'JUPYTERHUB_API_TOKEN',
@@ -86,11 +86,11 @@ class ECSSpawner(Spawner):
                                 },
                                 {
                                     'name': 'JPY_COOKIE_NAME',
-                                    'value': self.hub.cookie_name
+                                    'value': 'jupyter-hub-token-%s' % self.user.name  # self.hub.cookie_name in 0.8.0
                                 },
                                 {
                                     'name': 'JPY_HUB_PREFIX',
-                                    'value': self.hub.url
+                                    'value': self.hub.server.base_url #self.hub.url
                                 },
                                 {
                                     'name': 'JPY_HUB_API_URL',
