@@ -106,6 +106,7 @@ class ECSSpawner(Spawner):
             self.log.info("Spawned notebook container ")
             self.log.info("Fetching container info")
             resp2 = client.describe_tasks(cluster=self.cluster_name, tasks=[self.task_arn])
+            self.log.debug("Describe tasks ",str(resp2))
             ctr = 0
             last_status = 'PENDING'
             while last_status != 'RUNNING' and ctr<100:
@@ -123,11 +124,12 @@ class ECSSpawner(Spawner):
             self.log.info("Container running on port %d" % int(port))
             resp3 = client.describe_container_instances(cluster=self.cluster_name,
                                                         containerInstances=[container_instance_arn])
+            self.log.debug("Describe container instances " + str(resp3))
             ec2_instance_id = resp3['containerInstances'][0]['ec2InstanceId']
 
             self.log.info("Fetching ec2 container instance IP addresses")
             resp4 = self.ec2_client.describe_instances(InstanceIds=[ec2_instance_id])
-
+            self.log.debug("Describe instances "+str(resp4))
             public_ip = resp4['Reservations'][0]['Instances'][0]['PublicIpAddress']
             private_ip = resp4['Reservations'][0]['Instances'][0]['PrivateIpAddress']
             ip = public_ip if self.expose_public_ip else private_ip
