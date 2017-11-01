@@ -42,18 +42,21 @@ class ECSSpawner(Spawner):
 
     @gen.coroutine
     def poll(self):
-        if self.task_arn:
-            res = self.ecs_client.describe_tasks(
-                cluster=self.cluster_name,
-                tasks = [self.task_arn]
-            )
-            if res['tasks'][0]['lastStatus'].lower() in ('pending', 'running'):
-                return None
+        try:
+            if self.task_arn:
+                res = self.ecs_client.describe_tasks(
+                    cluster=self.cluster_name,
+                    tasks = [self.task_arn]
+                )
+                self.log.debug("Poll describe tasks "+str(res))
+                if res['tasks'][0]['lastStatus'].lower() in ('pending', 'running'):
+                    return None
+                else:
+                    return 1
             else:
-                return 1
-        else:
-            return 0
-
+                return 0
+        except Exception as e:
+            return 1
 
     @gen.coroutine
     def start(self):
@@ -101,6 +104,7 @@ class ECSSpawner(Spawner):
                     ]
                 }
             )
+            self.log.debug("Run task "+str(resp1))
             self.task_arn = resp1['tasks'][0]['containers'][0]['taskArn']
             container_instance_arn = resp1['tasks'][0]['containerInstanceArn']
             self.log.info("Spawned notebook container ")
